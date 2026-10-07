@@ -4,10 +4,11 @@ import {
   ArrowDownRight,
   ArrowRight,
   BadgeCheck,
-  Layers,
-  MapPin,
+  FileCheck2,
+  Landmark,
   Quote,
   ScanText,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { FaqAccordion, ProcessAccordion } from "@/components/accordion";
@@ -17,14 +18,16 @@ import { ButtonLink, Container } from "@/components/ui";
 import { TIERS } from "@/lib/trust";
 import type { Tier } from "@/lib/api";
 
+// Buyer-relevant proof points — speed, coverage, audit, residency.
 const PROOF = [
-  { label: "External AI calls", value: "0" },
-  { label: "Assurance tiers", value: "3" },
-  { label: "Credential signatures", value: "Ed25519" },
+  { label: "Per-document check", value: "< 3s" },
+  { label: "Checks logged for audit", value: "100%" },
+  { label: "Documents covered", value: "Tax · BEE · Bank · CIPC" },
   { label: "Data region", value: "af-south-1" },
 ];
 
-const CAPABILITIES: {
+// What Kamano forensically inspects — framed around real procurement documents.
+const CHECKS: {
   n: string;
   title: string;
   body: string;
@@ -36,9 +39,9 @@ const CAPABILITIES: {
 }[] = [
   {
     n: "01",
-    title: "Offline forensics",
-    body: "Metadata, font, and file-structure checks run inside Kamano. Deterministic, so the same file always gives the same result.",
-    meta: "PyMuPDF · OpenCV · No external AI",
+    title: "Document tampering",
+    body: "Detects editing-software traces, changes after creation, font and structure anomalies — the fingerprints of a Photoshopped tax clearance or altered BEE affidavit.",
+    meta: "SARS TCS · B-BBEE · bank letters",
     icon: ScanText,
     surface: "bg-ink-raised text-bone hover:border-ember/70",
     iconCls: "text-ember",
@@ -46,19 +49,19 @@ const CAPABILITIES: {
   },
   {
     n: "02",
-    title: "Assurance tiers",
-    body: "Every result states what it actually guarantees: tampering ruled out, seal validated, or source confirmed.",
-    meta: "Tier A · Tier B · Tier C",
-    icon: Layers,
+    title: "Security seals & QR",
+    body: "Validates the document's own cryptographic markers — a SARS TCS PIN or CIPC QR — so a self-validating certificate lifts the assurance it carries.",
+    meta: "Seal / QR validation (Tier B)",
+    icon: ShieldCheck,
     surface: "bg-cream text-black hover:border-ember",
     iconCls: "text-ember-deep",
     muted: "text-black/65",
   },
   {
     n: "03",
-    title: "Reusable credentials",
-    body: "Signed W3C Verifiable Credentials that any party can check independently, with revocation built in.",
-    meta: "Ed25519 · W3C VC · Live status",
+    title: "Reusable supplier passport",
+    body: "A verified supplier gets a signed, revocable Trust Credential. Every buyer on the network re-checks it instantly — less re-vetting, faster onboarding.",
+    meta: "Ed25519 · W3C · live revocation",
     icon: BadgeCheck,
     surface: "bg-lagoon text-bone hover:border-cyan-300/70",
     iconCls: "text-cyan-200",
@@ -66,63 +69,80 @@ const CAPABILITIES: {
   },
   {
     n: "04",
-    title: "Sovereign by design",
-    body: "The API refuses to start outside af-south-1. Raw documents are not retained; derived records keep the audit trail.",
-    meta: "POPIA · FICA-aligned · Append-only audit",
-    icon: MapPin,
+    title: "Audit-ready evidence",
+    body: "Every check is logged append-only and exportable — the proof your team acted with care if the Auditor-General or a FICA inspector ever asks.",
+    meta: "POPIA · PFMA / MFMA · append-only",
+    icon: Landmark,
     surface: "bg-crimson text-bone hover:border-red-200/70",
     iconCls: "text-red-100",
     muted: "text-white/75",
   },
 ];
 
+// What existing tools confirm vs. the hole they leave — the wedge, stated plainly.
+const GAP_THEM = [
+  "CSD confirms a supplier is registered — not that their documents are genuine",
+  "ID and face checks verify a person — not a forged tax clearance or BEE affidavit",
+  "Manual eyeballing is slow and misses skilled, AI-generated forgeries",
+];
+const GAP_US = [
+  "Is this specific document authentic, or edited?",
+  "Does its security seal or QR actually validate?",
+  "A signed, reusable record for every supplier decision",
+];
+
 const STEPS = [
   {
-    title: "Upload and analyse",
-    body: "A PDF is checked offline for editing software, changes after creation, font anomalies, and incremental saves.",
-    meta: "Output: reason codes and a risk score",
+    title: "Supplier uploads documents",
+    body: "Through the Kamano portal, or straight from your procurement system via API, at onboarding and renewal.",
+    meta: "Fits your existing vetting workflow",
   },
   {
-    title: "State the assurance",
-    body: "Each result is tagged Tier A, B, or C, so nobody mistakes “not tampered” for “confirmed valid”.",
-    meta: "Output: a decision with an honest tier",
+    title: "Kamano runs the forensics",
+    body: "Offline analysis of metadata, editing traces, fonts, structure, and security seals — all processed in South Africa.",
+    meta: "Under three seconds, no data leaves the region",
   },
   {
-    title: "Issue a credential",
-    body: "A verified result can be issued as an Ed25519-signed W3C credential for the entity, after a person has reviewed it.",
-    meta: "Output: a portable, verifiable credential",
+    title: "You get a clear decision",
+    body: "Verified, Review, or Rejected — with plain reason codes and an honest assurance tier, not a black-box score.",
+    meta: "A person can act on it and defend it",
   },
   {
-    title: "Reuse and revoke",
-    body: "Holders share credentials with consent. Anyone can check the signature, expiry, and live revocation status.",
-    meta: "Output: verify once, trusted many times",
+    title: "The evidence is kept",
+    body: "Every check is logged append-only and exportable, and the supplier earns a reusable credential for next time.",
+    meta: "Audit trail + verify-once reuse",
   },
 ];
 
+// Procurement-forensics is the launch wedge; everything else is explicit roadmap.
 const VERTICALS = [
-  { name: "Fintech KYC and CDD", stage: "Launch focus", scope: "Onboarding, FICA due diligence", when: "Now" },
-  { name: "Property and rental", stage: "Roadmap", scope: "Tenant screening", when: "Next" },
-  { name: "Vehicle finance", stage: "Roadmap", scope: "Income and address checks", when: "Later" },
-  { name: "Legal and professional", stage: "Roadmap", scope: "Client onboarding", when: "Later" },
-  { name: "Public sector", stage: "Roadmap", scope: "Supplier vetting", when: "Later" },
+  { name: "Supplier & vendor vetting", stage: "Launch focus", scope: "Corporate supply chain, tenders", when: "Now" },
+  { name: "Public procurement / SCM", stage: "Launch focus", scope: "Municipalities, SOEs, B-BBEE", when: "Now" },
+  { name: "Fintech KYC & CDD", stage: "Roadmap", scope: "FICA onboarding", when: "Next" },
+  { name: "Vehicle finance & property", stage: "Roadmap", scope: "Income, address, affordability", when: "Later" },
+  { name: "Legal & professional", stage: "Roadmap", scope: "Client onboarding", when: "Later" },
 ];
 
 const FAQ = [
   {
-    title: "Does any of my data leave South Africa?",
-    body: "Document analysis runs entirely inside the Kamano service, with no calls to external AI providers. The API refuses to start unless its data region is af-south-1 (Cape Town).",
+    title: "How is this different from CSD or an ID check?",
+    body: "CSD confirms a supplier is registered and ID checks confirm a person exists — neither looks at whether the uploaded tax clearance, BEE certificate, or bank letter has been altered. Kamano sits on top of those checks and closes exactly that gap: the authenticity of the document itself.",
   },
   {
     title: "Does “Verified” mean the certificate is genuine?",
-    body: "Not on its own. Today Kamano confirms that a document has not been tampered with (Tier C). Confirming that a certificate is real and current needs a registry check, which is Tier A and on the roadmap.",
+    body: "It depends on the tier, and we always tell you which. Tier C (available now) confirms the document has not been tampered with. Tier A — live confirmation against SARS, CIPC, or Home Affairs — is on the roadmap by document type. We never let “not edited” be mistaken for “source-confirmed.”",
   },
   {
-    title: "What happens to the documents I upload?",
-    body: "Files are analysed in memory and are not stored. Kamano keeps a SHA-256 fingerprint, the findings, and an audit entry, which is what an auditor needs.",
+    title: "Does any of my data leave South Africa?",
+    body: "No. Document analysis runs entirely inside the Kamano service with no calls to external AI providers, and the service refuses to start unless its data region is af-south-1 (Cape Town). Raw documents are not retained; we keep a fingerprint, the findings, and an audit entry.",
   },
   {
-    title: "Can a credential be withdrawn?",
-    body: "Yes. A credential can be revoked at any time, and every check reads its live revocation status, so a revoked credential stops passing immediately.",
+    title: "How does it fit our procurement process?",
+    body: "Start with the web portal on day one, or integrate Kamano into your SAP, Sage, or procurement system so checks run automatically at supplier onboarding and renewal. Either way the result and its audit trail live in one place.",
+  },
+  {
+    title: "What is the easiest way to see if it works?",
+    body: "A paid pilot on your own suppliers: we re-screen a batch of recently approved document packs and show you what your current process let through. If we don't surface anything it should have caught, there is nothing to roll out.",
   },
 ];
 
@@ -131,7 +151,7 @@ const TIER_ORDER: Tier[] = ["C", "B", "A"];
 export default function Home() {
   return (
     <>
-      {/* Hero */}
+      {/* Hero — procurement-forensics wedge, stated in the first screen */}
       <section className="relative isolate min-h-screen overflow-hidden bg-ember-hero text-black">
         <div aria-hidden="true" className="absolute inset-0 -z-10">
           <LogoMark className="absolute -right-[12rem] top-1/2 h-[min(125vh,72rem)] w-[min(125vh,72rem)] -translate-y-1/2 text-black/[0.09]" />
@@ -141,21 +161,22 @@ export default function Home() {
         <Container className="flex min-h-screen flex-col justify-end pb-8 pt-28 sm:pb-10">
           <div className="max-w-5xl">
             <p className="mb-5 animate-rise text-sm font-medium text-black/75" style={{ animationDelay: "120ms" }}>
-              Digital trust infrastructure · South Africa
+              Supplier document forensics · for procurement, finance &amp; compliance
             </p>
             <h1
               className="max-w-5xl animate-rise text-5xl font-medium leading-[0.92] tracking-tight sm:text-7xl lg:text-8xl"
               style={{ animationDelay: "225ms" }}
             >
-              Trust that holds up to an audit.
+              Know the paperwork is real before you pay.
             </h1>
             <div className="mt-7 grid gap-6 border-t border-black/30 pt-6 md:grid-cols-12 md:items-end">
               <p
                 className="animate-rise text-lg leading-relaxed text-black/80 md:col-span-6 lg:col-span-5"
                 style={{ animationDelay: "330ms" }}
               >
-                Offline document forensics, explainable reason codes, and reusable credentials for
-                FICA-grade onboarding. Your data stays in South Africa.
+                Kamano forensically verifies supplier documents — tax clearances, B-BBEE certificates,
+                bank letters, CIPC records — in seconds, with an audit trail that stands up to the
+                Auditor-General and FICA. Processed in South Africa.
               </p>
               <div
                 className="flex animate-rise flex-col gap-3 sm:flex-row md:col-span-6 md:justify-end"
@@ -164,8 +185,8 @@ export default function Home() {
                 <ButtonLink href="/verify" variant="dark" icon={ArrowDownRight} nudge="down-right">
                   Verify a document
                 </ButtonLink>
-                <ButtonLink href="/check" variant="outline-dark" nudge="none">
-                  Check a credential
+                <ButtonLink href="#how" variant="outline-dark" nudge="none">
+                  See how it works
                 </ButtonLink>
               </div>
             </div>
@@ -175,7 +196,7 @@ export default function Home() {
             className="mt-9 flex animate-rise items-center justify-between text-xs text-black/70"
             style={{ animationDelay: "540ms" }}
           >
-            <span>Kamano: Sesotho for “connection”</span>
+            <span>A 3-second check between you and a fraudulent payment</span>
             <a
               href="#proof"
               className="inline-flex min-h-11 items-center gap-2 transition-colors hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
@@ -193,28 +214,77 @@ export default function Home() {
           {PROOF.map((p) => (
             <Reveal key={p.label}>
               <p className="text-xs text-white/55">{p.label}</p>
-              <p className="mt-2 text-3xl font-medium tracking-tight">{p.value}</p>
+              <p className="mt-2 text-2xl font-medium tracking-tight sm:text-3xl">{p.value}</p>
             </Reveal>
           ))}
         </Container>
       </section>
 
-      {/* Capabilities */}
+      {/* The gap — the sharpest statement of the wedge */}
       <section className="py-20 sm:py-28">
         <Container>
           <Reveal className="grid gap-8 border-b border-white/15 pb-12 lg:grid-cols-12">
             <div className="lg:col-span-4">
-              <p className="text-sm text-ember">What Kamano does</p>
+              <p className="text-sm text-ember">The gap you're exposed to</p>
             </div>
             <div className="lg:col-span-8">
               <h2 className="max-w-4xl text-4xl font-medium leading-tight tracking-tight sm:text-6xl">
-                One trust layer, from the first upload to the final audit.
+                Your checks confirm a supplier exists. Not that their documents are real.
               </h2>
             </div>
           </Reveal>
 
           <div className="mt-12 grid gap-4 lg:grid-cols-2">
-            {CAPABILITIES.map(({ icon: Icon, ...c }) => (
+            <Reveal>
+              <article className="flex h-full flex-col rounded-md border border-white/15 bg-ink-raised p-6 sm:p-8">
+                <h3 className="text-2xl font-medium tracking-tight">What your current tools confirm</h3>
+                <ul className="mt-6 space-y-3">
+                  {GAP_THEM.map((item) => (
+                    <li key={item} className="flex gap-3 text-lg leading-relaxed text-white/65">
+                      <span aria-hidden="true" className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-sm bg-white/30" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-6 text-sm text-white/45">All useful. None of them look at the document itself.</p>
+              </article>
+            </Reveal>
+            <Reveal>
+              <article className="flex h-full flex-col rounded-md border border-ember bg-ember p-6 text-black sm:p-8">
+                <h3 className="text-2xl font-medium tracking-tight">What Kamano adds on top</h3>
+                <ul className="mt-6 space-y-3">
+                  {GAP_US.map((item) => (
+                    <li key={item} className="flex gap-3 text-lg leading-relaxed text-black/80">
+                      <FileCheck2 aria-hidden="true" strokeWidth={1.75} className="mt-1 h-5 w-5 shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-6 text-sm text-black/70">
+                  Kamano complements CSD and your KYC — it doesn&rsquo;t replace them.
+                </p>
+              </article>
+            </Reveal>
+          </div>
+        </Container>
+      </section>
+
+      {/* What we check */}
+      <section className="border-t border-white/15 py-20 sm:py-28">
+        <Container>
+          <Reveal className="grid gap-8 border-b border-white/15 pb-12 lg:grid-cols-12">
+            <div className="lg:col-span-4">
+              <p className="text-sm text-ember">What Kamano checks</p>
+            </div>
+            <div className="lg:col-span-8">
+              <h2 className="max-w-4xl text-4xl font-medium leading-tight tracking-tight sm:text-6xl">
+                Forensics on the documents fraud actually hides in.
+              </h2>
+            </div>
+          </Reveal>
+
+          <div className="mt-12 grid gap-4 lg:grid-cols-2">
+            {CHECKS.map(({ icon: Icon, ...c }) => (
               <Reveal key={c.n}>
                 <article
                   className={`flex min-h-80 flex-col justify-between rounded-md border border-white/15 p-6 transition duration-300 hover:-translate-y-1 sm:p-8 ${c.surface}`}
@@ -280,20 +350,20 @@ export default function Home() {
       </section>
 
       {/* Process */}
-      <section className="py-20 sm:py-28">
+      <section id="how" className="scroll-mt-16 py-20 sm:py-28">
         <Container>
           <div className="grid gap-12 lg:grid-cols-12">
             <Reveal className="lg:col-span-5">
               <div className="lg:sticky lg:top-28">
                 <p className="text-sm text-ember">How it works</p>
                 <h2 className="mt-4 text-5xl font-medium tracking-tight sm:text-6xl">
-                  Verify once.
+                  Sits on top of
                   <br />
-                  Reuse with consent.
+                  how you vet today.
                 </h2>
                 <p className="mt-6 max-w-md text-lg leading-relaxed text-white/65">
-                  Every step leaves evidence. Decisions are explainable, people stay in the loop for
-                  issuance, and the audit trail cannot be edited.
+                  No rip-and-replace. Kamano slots into supplier onboarding and renewal, leaves
+                  evidence at every step, and keeps a person in the loop for the call that matters.
                 </p>
                 <ButtonLink href="/verify" variant="outline" icon={ArrowDownRight} className="mt-8">
                   Start with a document
@@ -328,13 +398,13 @@ export default function Home() {
         </Container>
       </section>
 
-      {/* Verticals index */}
+      {/* Where we focus */}
       <section className="py-20 sm:py-28">
         <Container>
           <Reveal className="flex items-end justify-between border-b border-white/20 pb-6">
             <div>
-              <p className="text-sm text-white/55">Who it is for</p>
-              <h2 className="mt-3 text-4xl font-medium tracking-tight sm:text-5xl">Built one sector at a time</h2>
+              <p className="text-sm text-white/55">Where we focus</p>
+              <h2 className="mt-3 text-4xl font-medium tracking-tight sm:text-5xl">Procurement first. On purpose.</h2>
             </div>
             <span className="text-lg text-white/55" aria-hidden="true">
               (0{VERTICALS.length})
@@ -352,6 +422,12 @@ export default function Home() {
               </li>
             ))}
           </ul>
+          <Reveal>
+            <p className="mt-8 max-w-2xl text-white/55">
+              We win one lane completely before we widen. Supplier and procurement document forensics
+              is a gap the identity players ignore — so that is where Kamano goes deep first.
+            </p>
+          </Reveal>
         </Container>
       </section>
 
@@ -368,10 +444,11 @@ export default function Home() {
                 href="/verify"
                 className="group rounded-md border border-white/15 p-6 transition hover:border-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember"
               >
-                <p className="text-xs text-white/55">For compliance teams</p>
-                <h3 className="mt-5 text-2xl font-medium tracking-tight">Verify a document</h3>
+                <p className="text-xs text-white/55">For procurement &amp; compliance teams</p>
+                <h3 className="mt-5 text-2xl font-medium tracking-tight">Verify a supplier document</h3>
                 <p className="mt-3 text-base leading-relaxed text-white/65">
-                  Upload a PDF and get reason codes, a risk score, and an honest assurance tier.
+                  Upload a tax clearance, BEE certificate, or bank letter and get reason codes, a risk
+                  score, and an honest assurance tier.
                 </p>
                 <p className="mt-8 inline-flex items-center gap-2 text-sm text-white/80">
                   Open verification
@@ -382,10 +459,11 @@ export default function Home() {
                 href="/check"
                 className="group rounded-md border border-ember bg-ember p-6 text-black transition hover:bg-ember-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
               >
-                <p className="text-xs text-black/70">For relying parties</p>
+                <p className="text-xs text-black/70">For buyers checking a supplier</p>
                 <h3 className="mt-5 text-2xl font-medium tracking-tight">Check a credential</h3>
                 <p className="mt-3 text-base leading-relaxed text-black/75">
-                  Paste a Kamano credential to confirm its signature, expiry, and revocation status.
+                  Paste a supplier&rsquo;s Kamano credential to confirm its signature, validity, and live
+                  revocation status.
                 </p>
                 <p className="mt-8 inline-flex items-center gap-2 text-sm">
                   Open checker
@@ -412,21 +490,21 @@ export default function Home() {
         </Container>
       </section>
 
-      {/* CTA */}
+      {/* CTA — pilot offer */}
       <section className="bg-ember py-20 text-black sm:py-28">
         <Container>
           <Reveal>
-            <p className="text-sm text-black/70">Have a document to check?</p>
+            <p className="text-sm text-black/70">The easiest way to see it</p>
             <div className="mt-5 flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between">
               <h2 className="max-w-5xl text-5xl font-medium leading-[0.95] tracking-tight sm:text-7xl lg:text-8xl">
-                See what it really tells you.
+                Run a pilot on your own suppliers.
               </h2>
               <ButtonLink href="/verify" variant="dark" icon={ArrowDownRight} nudge="down-right" className="min-h-14 shrink-0 self-start px-7 text-base lg:self-auto">
                 Verify a document
               </ButtonLink>
             </div>
             <div className="mt-14 flex flex-col gap-3 border-t border-black/25 pt-6 text-sm text-black/70 sm:flex-row sm:items-center sm:justify-between">
-              <span>Every result comes with reason codes you can take to an auditor.</span>
+              <span>We re-screen a batch of your approved documents and show you what got through.</span>
               <span>Data region: af-south-1</span>
             </div>
           </Reveal>
