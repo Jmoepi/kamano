@@ -8,6 +8,8 @@ promise an enforced invariant rather than a marketing claim (review 3.1).
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,11 +17,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import __version__
 from app.api.routes import router
 from app.core.config import settings
+from app.services.store_provider import init_store
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("kamano")
 
 _AFRICAN_REGIONS = {"af-south-1"}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    store = await init_store()
+    logger.info("Store backend: %s", getattr(store, "backend", "unknown"))
+    yield
+    if settings.use_database:
+        from app.core.database import dispose_engine
+
+        await dispose_engine()
 
 
 def _check_data_residency() -> None:
@@ -43,6 +57,7 @@ def create_app() -> FastAPI:
             "verification + reusable Ed25519 W3C credentials. Data stays in "
             f"{settings.data_region}."
         ),
+        lifespan=lifespan,
     )
 
     app.add_middleware(

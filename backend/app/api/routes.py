@@ -24,7 +24,7 @@ from app.models.schemas import (
 )
 from app.services.credentials import CredentialEngine, status_from
 from app.services.forensics import ForensicEngine, decide, sha256_bytes
-from app.services.store import store
+from app.services.store_provider import get_store
 
 router = APIRouter(prefix=settings.api_prefix)
 
@@ -32,9 +32,9 @@ _forensics = ForensicEngine()
 _credentials = CredentialEngine()
 
 
-def _audit(event: str, resource_type: str, resource_id: str, meta: dict | None = None):
+async def _audit(event: str, resource_type: str, resource_id: str, meta: dict | None = None):
     if settings.popia_audit_enabled:
-        store.add_audit(
+        await get_store().add_audit(
             {
                 "id": str(uuid.uuid4()),
                 "event_type": event,
@@ -51,7 +51,12 @@ def _audit(event: str, resource_type: str, resource_id: str, meta: dict | None =
 
 @router.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "service": settings.app_name, "data_region": settings.data_region}
+    return {
+        "status": "ok",
+        "service": settings.app_name,
+        "data_region": settings.data_region,
+        "store_backend": getattr(get_store(), "backend", "unknown"),
+    }
 
 
 @router.get("/health/ready")
@@ -100,16 +105,16 @@ async def verify_document(file: UploadFile = File(...)) -> VerificationResult:
         created_at=now,
         expires_at=now + timedelta(days=settings.raw_document_retention_days),
     )
-    store.save_verification(result.model_dump(mode="json"))
+    await get_store().save_verification(result.model_dump(mode="json"))
     # NOTE: only the derived record is retained; the raw document buffer is not
     # persisted here (POPIA data minimisation / 30-day purge, review 3.4).
-    _audit("verification.created", "verification", result.id, {"tier": tier.value})
+    await _audit("verification.created", "verification", result.id, {"tier": tier.value})
     return result
 
 
 @router.get("/verification/{vid}", response_model=VerificationResult)
 async def get_verification(vid: str) -> VerificationResult:
-    rec = store.get_verification(vid)
+    rec = await get_store().get_verification(vid)
     if not rec:
         raise HTTPException(status_code=404, detail="Not found.")
     return VerificationResult.model_validate(rec)
@@ -117,7 +122,7 @@ async def get_verification(vid: str) -> VerificationResult:
 
 @router.get("/verifications")
 async def list_verifications() -> dict:
-    items = store.list_verifications()
+    items = await get_store().list_verifications()
     return {"count": len(items), "items": items}
 
 
@@ -126,7 +131,8 @@ async def list_verifications() -> dict:
 
 @router.post("/credential/issue")
 async def issue_credential(req: IssueCredentialRequest) -> dict:
-    verification = store.get_verification(req.verification_id)
+    store = get_store()
+    verification = await store.get_verification(req.verification_id)
     if not verification:
         raise HTTPException(status_code=404, detail="Verification not found.")
     if verification["decision"] == "REJECTED":
@@ -138,14 +144,14 @@ async def issue_credential(req: IssueCredentialRequest) -> dict:
     subject = CredentialSubject.model_validate(req.subject.model_dump())
     vc = _credentials.issue(subject, valid_days=req.valid_days)
     cred_id = vc.id.split(":")[-1]
-    store.save_credential({"id": cred_id, "credential": vc.model_dump(by_alias=True)})
-    _audit("credential.issued", "credential", cred_id, {"tier": subject.assurance_tier.value})
+    await store.save_credential({"id": cred_id, "credential": vc.model_dump(by_alias=True)})
+    await _audit("credential.issued", "credential", cred_id, {"tier": subject.assurance_tier.value})
     return {"id": cred_id, "credential": vc.model_dump(by_alias=True)}
 
 
 @router.get("/credential/{cid}")
 async def get_credential(cid: str) -> dict:
-    rec = store.get_credential(cid)
+    rec = await get_store().get_credential(cid)
     if not rec:
         raise HTTPException(status_code=404, detail="Not found.")
     return rec
@@ -153,35 +159,36 @@ async def get_credential(cid: str) -> dict:
 
 @router.get("/credentials")
 async def list_credentials() -> dict:
-    items = store.list_credentials()
+    items = await get_store().list_credentials()
     return {"count": len(items), "items": items}
 
 
 @router.post("/credential/{cid}/revoke")
 async def revoke_credential(cid: str) -> dict:
     """Revoke a credential after issuance (review 2.3)."""
-    if not store.revoke(cid):
+    if not await get_store().revoke(cid):
         raise HTTPException(status_code=404, detail="Credential not found.")
-    _audit("credential.revoked", "credential", cid)
+    await _audit("credential.revoked", "credential", cid)
     return {"id": cid, "status": CredentialStatus.REVOKED.value}
 
 
 @router.get("/credentials/status/{cid}")
 async def credential_status(cid: str) -> dict:
     """Public status endpoint referenced by each credential's credentialStatus."""
-    rec = store.get_credential(cid)
+    store = get_store()
+    rec = await store.get_credential(cid)
     if not rec:
         raise HTTPException(status_code=404, detail="Unknown credential.")
     valid_until = rec["credential"].get("validUntil")
-    status = status_from(valid_until, store.is_revoked(cid))
+    status = status_from(valid_until, await store.is_revoked(cid))
     return {"id": cid, "status": status.value}
 
 
 @router.post("/credential/consent")
 async def record_consent(consent: ConsentRecord) -> dict:
     """Holder grants a verifier consent to read a credential (review 2.3)."""
-    store.add_consent(consent.model_dump(mode="json"))
-    _audit("consent.granted", "consent", consent.holder_id, {"verifier": consent.verifier_id})
+    await get_store().add_consent(consent.model_dump(mode="json"))
+    await _audit("consent.granted", "consent", consent.holder_id, {"verifier": consent.verifier_id})
     return {"recorded": True}
 
 
@@ -192,7 +199,7 @@ async def verify_credential(req: CredentialVerifyRequest) -> CredentialVerifyRes
     cid = str(credential.get("id", "")).split(":")[-1]
 
     sig_ok, reasons = _credentials.verify_signature(credential)
-    if store.is_revoked(cid):
+    if await get_store().is_revoked(cid):
         reasons.append("Credential has been revoked.")
         return CredentialVerifyResponse(
             valid=False, status=CredentialStatus.REVOKED, reasons=reasons
@@ -208,15 +215,17 @@ async def verify_credential(req: CredentialVerifyRequest) -> CredentialVerifyRes
 
 @router.get("/dashboard/stats")
 async def dashboard_stats() -> dict:
-    verifications = store.list_verifications()
+    store = get_store()
+    verifications = await store.list_verifications()
     tiers: dict[str, int] = {}
     decisions: dict[str, int] = {}
     for v in verifications:
         tiers[v["assurance_tier"]] = tiers.get(v["assurance_tier"], 0) + 1
         decisions[v["decision"]] = decisions.get(v["decision"], 0) + 1
+    credentials = await store.list_credentials()
     return {
         "total_verifications": len(verifications),
-        "total_credentials": len(store.list_credentials()),
+        "total_credentials": len(credentials),
         "by_assurance_tier": tiers,
         "by_decision": decisions,
     }
@@ -224,5 +233,5 @@ async def dashboard_stats() -> dict:
 
 @router.get("/audit/log")
 async def audit_log() -> dict:
-    items = store.list_audit()
+    items = await get_store().list_audit()
     return {"count": len(items), "items": items}

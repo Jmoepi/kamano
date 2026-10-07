@@ -1,17 +1,39 @@
-"""Tiny in-memory store so the skeleton runs end-to-end without a database.
+"""Store interface + in-memory implementation.
 
-In production this is replaced by the SQLAlchemy models backed by AWS RDS
-PostgreSQL in af-south-1 (see supabase/migrations for the schema). Kept behind
-a narrow interface so swapping it is low-risk.
+Two implementations share one async interface (`Store`):
+  * MemoryStore — zero-dependency, used for demos/tests when no DB is reachable.
+  * PgStore (app/services/pg_store.py) — PostgreSQL via SQLAlchemy async.
+
+Routes depend only on the interface, so swapping is transparent. All methods
+are async even in the memory store so the call sites are identical.
 """
 
 from __future__ import annotations
 
 import threading
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
+
+
+@runtime_checkable
+class Store(Protocol):
+    async def save_verification(self, record: dict[str, Any]) -> None: ...
+    async def get_verification(self, vid: str) -> dict[str, Any] | None: ...
+    async def list_verifications(self) -> list[dict[str, Any]]: ...
+    async def save_credential(self, record: dict[str, Any]) -> None: ...
+    async def get_credential(self, cid: str) -> dict[str, Any] | None: ...
+    async def list_credentials(self) -> list[dict[str, Any]]: ...
+    async def revoke(self, cid: str) -> bool: ...
+    async def is_revoked(self, cid: str) -> bool: ...
+    async def add_consent(self, record: dict[str, Any]) -> None: ...
+    async def add_audit(self, record: dict[str, Any]) -> None: ...
+    async def list_audit(self) -> list[dict[str, Any]]: ...
 
 
 class MemoryStore:
+    """Process-local store. Not durable; for demos and unit tests only."""
+
+    backend = "memory"
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self.verifications: dict[str, dict[str, Any]] = {}
@@ -20,46 +42,43 @@ class MemoryStore:
         self.consents: list[dict[str, Any]] = []
         self.audit: list[dict[str, Any]] = []
 
-    def save_verification(self, record: dict[str, Any]) -> None:
+    async def save_verification(self, record: dict[str, Any]) -> None:
         with self._lock:
             self.verifications[record["id"]] = record
 
-    def get_verification(self, vid: str) -> dict[str, Any] | None:
+    async def get_verification(self, vid: str) -> dict[str, Any] | None:
         return self.verifications.get(vid)
 
-    def list_verifications(self) -> list[dict[str, Any]]:
+    async def list_verifications(self) -> list[dict[str, Any]]:
         return list(self.verifications.values())
 
-    def save_credential(self, record: dict[str, Any]) -> None:
+    async def save_credential(self, record: dict[str, Any]) -> None:
         with self._lock:
             self.credentials[record["id"]] = record
 
-    def get_credential(self, cid: str) -> dict[str, Any] | None:
+    async def get_credential(self, cid: str) -> dict[str, Any] | None:
         return self.credentials.get(cid)
 
-    def list_credentials(self) -> list[dict[str, Any]]:
+    async def list_credentials(self) -> list[dict[str, Any]]:
         return list(self.credentials.values())
 
-    def revoke(self, cid: str) -> bool:
+    async def revoke(self, cid: str) -> bool:
         with self._lock:
             if cid in self.credentials:
                 self.revoked.add(cid)
                 return True
             return False
 
-    def is_revoked(self, cid: str) -> bool:
+    async def is_revoked(self, cid: str) -> bool:
         return cid in self.revoked
 
-    def add_consent(self, record: dict[str, Any]) -> None:
+    async def add_consent(self, record: dict[str, Any]) -> None:
         with self._lock:
             self.consents.append(record)
 
-    def add_audit(self, record: dict[str, Any]) -> None:
+    async def add_audit(self, record: dict[str, Any]) -> None:
         with self._lock:
             self.audit.append(record)
 
-    def list_audit(self) -> list[dict[str, Any]]:
+    async def list_audit(self) -> list[dict[str, Any]]:
         return list(self.audit)
-
-
-store = MemoryStore()

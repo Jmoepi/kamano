@@ -20,6 +20,7 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgresql+asyncpg://kamano:kamano@db:5432/kamano
+      USE_DATABASE: "true"
       DATA_REGION: af-south-1
       ENFORCE_DATA_RESIDENCY: "true"
       ENVIRONMENT: development

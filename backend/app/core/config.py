@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+asyncpg://kamano:kamano@localhost:5432/kamano"
     )
+    # When false, the app always uses the in-memory store (demo mode). When
+    # true, it uses PostgreSQL if reachable, else falls back to in-memory.
+    use_database: bool = False
 
     # --- Cryptographic signing (Ed25519) ---
     # In production these point at files mounted from a secrets manager / KMS.

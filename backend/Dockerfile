@@ -13,8 +13,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Prefer the pinned lockfile for reproducible builds; fall back to floors.
+# For a fully linux-matched lock, regenerate requirements.lock.txt inside this
+# image (see the header of that file).
+COPY requirements.txt requirements.lock.txt ./
+RUN pip install --upgrade pip \
+    && if [ -f requirements.lock.txt ]; then \
+         pip install -r requirements.lock.txt; \
+       else \
+         pip install -r requirements.txt; \
+       fi
 
 COPY . .
 
