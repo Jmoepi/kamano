@@ -1,0 +1,38 @@
+# Kamano backend dependencies (target: Python 3.11+)
+
+# Web framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+gunicorn==23.0.0
+pydantic==2.9.2
+pydantic-settings==2.5.2
+python-multipart==0.0.12
+
+# Offline forensic engine (NO external AI APIs — data sovereignty by design)
+PyMuPDF==1.24.10          # fitz: PDF parsing, metadata, fonts, embedded images
+opencv-python-headless==4.10.0.84
+Pillow==10.4.0
+numpy==1.26.4
+
+# Cryptography — Ed25519 signing for W3C Verifiable Credentials
+cryptography==43.0.1
+qrcode[pil]==7.4.2
+
+# Database (works against any PostgreSQL, incl. AWS RDS in af-south-1)
+sqlalchemy[asyncio]==2.0.35
+asyncpg==0.29.0
+alembic==1.13.3
+
+# Auth / security
+pyjwt==2.9.0
+passlib[bcrypt]==1.7.4
+
+# Utilities
+python-dotenv==1.0.1
+structlog==24.4.0
+
+# Dev / test
+pytest==8.3.3
+pytest-asyncio==0.24.0
+httpx==0.27.2
+ruff==0.6.8

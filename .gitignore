@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Secrets & keys — never commit
+.env
+.env.local
+keys/
+*.pem
+
+# Node
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Generated sample docs
+sample-docs/legitimate/*.pdf
+sample-docs/tampered/*.pdf
